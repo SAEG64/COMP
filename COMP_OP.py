@@ -68,7 +68,7 @@ for i in range(0, len(items)):
 
 
 # =============================================================================
-# Markov Decision Process
+# Markov Decision Process - selfish
 # =============================================================================
 # Define environment
 nSta = 7    # LP states
@@ -175,66 +175,234 @@ for itr in range(0, len(slct)):
     Q_lst.append(Qs)
     piLst.append(pi)
                 
-# Evaluate OP weather discrimination
-tot = 0
-for i in range(0, len(piLst)):
-    l = np.count_nonzero(piLst[i][0] == 2)
-    r = np.count_nonzero(piLst[i][1] == 2)
-    if abs(l-r) > 5:
-        tot += 1
-print("ratio of forests where weathers differ significantly: ", tot/len(slct))
+# # Evaluate OP weather discrimination
+# tot = 0
+# for i in range(0, len(piLst)):
+#     l = np.count_nonzero(piLst[i][0] == 2)
+#     r = np.count_nonzero(piLst[i][1] == 2)
+#     if abs(l-r) > 5:
+#         tot += 1
+# print("ratio of forests where weathers differ significantly: ", tot/len(slct))
 
 
+# =============================================================================
+# Markov Decision Process - pareto
+# =============================================================================
+# Define "god" player
+w = 0.5 # weight of own choice
+
+Q_lstPARE = []
+piLstPARE = []
+for itr in range(0, len(slct)):
+    
+    # State-action space
+    Qs = {}
+    for i in range(int(nEnv)):
+        for j in range(0, nSta):
+            Qs[i,j] = Q_space(obser, nDec)
+    # Reward spaces
+    Rs = Q_space(obser, 1*nSta)
+    # Policy spaces
+    pi = {}
+    for i in range(int(nEnv)):
+        pi[i] = copy.deepcopy(Rs)
+        pi[i][:: int(nDay+1), :] = np.nan
+    
+    for i_day in range(0, nDay):
+        for i_sta in range(0, nSta):
+            for j_sta in range(0, nSta):
+                for i_env in range(0, nEnv):
+                    
+                    # Probability & magnitude of gain
+                    pG = slct[itr]["1 pSuccess"][i_env]
+                    pE = slct[itr]["1.1 pExtra coop"][i_env]
+                    b = slct[itr]["2 gain magnitude"][i_env]
+                    # Current state
+                    stateS = nSta + i_day * nSta + i_sta
+                    stateO = nSta + i_day * nSta + j_sta
+                    
+                    # Reward vector
+                    rew = Rs[i_day*nSta : i_day*nSta+nSta, j_sta]
+                    
+                    ## Transition vectors for outcomes
+                    trnsCC = copy.deepcopy(trns)
+                    trnsCD = copy.deepcopy(trns)
+                    trnsDC = copy.deepcopy(trns)
+                    trnsDD = copy.deepcopy(trns)
+                    trnoCC = copy.deepcopy(trns)
+                    trnoCD = copy.deepcopy(trns)
+                    trnoDC = copy.deepcopy(trns)
+                    trnoDD = copy.deepcopy(trns)
+                    if i_sta == 0 and j_sta == 0:
+                        ## Self
+                        # cooperate/cooperate
+                        trnsCC = steaL(trnsCC, 1, i_sta)
+                        trnsCC = trnsCC/2
+                        # cooperate/defect
+                        trnsCD = steaL(trnsCD, 1, i_sta)
+                        trnsCD = trnsCD/2
+                        # defect/cooperate
+                        trnsDC = steaL(trnsDC, 1, i_sta)
+                        trnsDC = trnsDC/2
+                        # defect/defect
+                        trnsDD = steaL(trnsDD, 1, i_sta)
+                        trnsDD = trnsDD/2
+                        
+                        ## Other
+                        # cooperate/cooperate
+                        trnoCC = steaL(trnoCC, 1, j_sta)
+                        trnoCC = trnoCC/2
+                        # cooperate/defect
+                        trnoCD = steaL(trnoCD, 1, j_sta)
+                        trnoCD = trnoCD/2
+                        # defect/cooperate
+                        trnoDC = steaL(trnoDC, 1, j_sta)
+                        trnoDC = trnoDC/2
+                        # defect/defect
+                        trnoDD = steaL(trnoDD, 1, j_sta)
+                        trnoDD = trnoDD/2
+                    elif i_sta == 0 and j_sta != 0:
+                        ## Self
+                        # cooperate/cooperate
+                        trnsCC = steaL(trnsCC, 1, i_sta)
+                        trnsCC = trnsCC/2
+                        # cooperate/defect
+                        trnsCD = steaL(trnsCD, 1, i_sta)
+                        trnsCD = trnsCD/2
+                        # defect/cooperate
+                        trnsDC = steaL(trnsDC, 1, i_sta)
+                        trnsDC = trnsDC/2
+                        # defect/defect
+                        trnsDD = steaL(trnsDD, 1, i_sta)
+                        trnsDD = trnsDD/2
+                        
+                        ## Other
+                        # cooperate/cooperate
+                        trnoCC = foraG(trnoCC, pG, j_sta)
+                        trnoCC = foraL(trnoCC, 1-pG, j_sta)
+                        trnoCC = trnoCC/2
+                        # cooperate/defect
+                        trnoCD = foraG(trnoCD, pG, j_sta)
+                        trnoCD = foraL(trnoCD, 1-pG, j_sta)
+                        trnoCD = trnoCD/2
+                        # defect/cooperate
+                        trnoDC = steaL(trnoDC, 1, j_sta)
+                        trnoDC = trnoDC/2
+                        # defect/defect
+                        trnoDD = steaL(trnoDD, 1, j_sta)
+                        trnoDD = trnoDD/2
+                    elif i_sta != 0 and j_sta == 0:
+                        ## Self
+                        # cooperate/cooperate
+                        trnsCC = foraG(trnsCC, pG, i_sta)
+                        trnsCC = foraL(trnsCC, 1-pG, i_sta)
+                        trnsCC = trnsCC/2
+                        # cooperate/defect
+                        trnsCD = foraG(trnsCD, pG, i_sta)
+                        trnsCD = foraL(trnsCD, 1-pG, i_sta)
+                        trnsCD = trnsCD/2
+                        # defect/cooperate
+                        trnsDC = steaL(trnsDC, 1, i_sta)
+                        trnsDC = trnsDC/2
+                        # defect/defect
+                        trnsDD = steaL(trnsDD, 1, i_sta)
+                        trnsDD = trnsDD/2
+                        
+                        ## Other
+                        # cooperate/cooperate
+                        trnoCC = steaL(trnoCC, 1, j_sta)
+                        trnoCC = trnoCC/2
+                        # cooperate/defect
+                        trnoCD = steaL(trnoCD, 1, j_sta)
+                        trnoCD = trnoCD/2
+                        # defect/cooperate
+                        trnoDC = steaL(trnoDC, 1, j_sta)
+                        trnoDC = trnoDC/2
+                        # defect/defect
+                        trnoDD = steaL(trnoDD, 1, j_sta)
+                        trnoDD = trnoDD/2
+                    else:
+                        ## Self
+                        # cooperate/cooperate
+                        trnsCC = foraG(trnsCC, pG+pE, i_sta)
+                        trnsCC = foraL(trnsCC, 1-(pG+pE), i_sta)
+                        trnsCC = trnsCC/2
+                        # cooperate/defect
+                        trnsCD = foraL(trnsCD, 1, i_sta)
+                        trnsCD = trnsCD/2
+                        # defect/cooperate
+                        trnsDC = steaG(trnsDC, pG, i_sta)
+                        trnsDC = steaL(trnsDC, 1-pG, i_sta)
+                        trnsDC = trnsDC/2
+                        # defect/defect
+                        trnsDD = steaL(trnsDD, 1, i_sta)
+                        trnsDD = trnsDD/2
+                        
+                        ## Other
+                        # cooperate/cooperate
+                        trnoCC = foraG(trnoCC, pG+pE, j_sta)
+                        trnoCC = foraL(trnoCC, 1-(pG+pE), j_sta)
+                        trnoCC = trnoCC/2
+                        # cooperate/defect
+                        trnoCD = foraL(trnoCD, 1, j_sta)
+                        trnoCD = trnoCD/2
+                        # defect/cooperate
+                        trnoDC = steaG(trnoDC, pG, j_sta)
+                        trnoDC = steaL(trnoDC, 1-pG, j_sta)
+                        trnoDC = trnoDC/2
+                        # defect/defect
+                        trnoDD = steaL(trnoDD, 1, j_sta)
+                        trnoDD = trnoDD/2
+                    
+                    # Update Q space
+                    Qs[i_env, j_sta][stateS][0] = w*np.dot(trnsCC, rew)+(1-w)*np.dot(trnoCC, rew)
+                    Qs[i_env, j_sta][stateS][1] = w*np.dot(trnsCD, rew)+(1-w)*np.dot(trnoDC, rew)
+                    Qs[i_env, j_sta][stateS][2] = w*np.dot(trnsDC, rew)+(1-w)*np.dot(trnoCD, rew)
+                    Qs[i_env, j_sta][stateS][3] = w*np.dot(trnsDD, rew)+(1-w)*np.dot(trnoDD, rew)
+                    Qs[i_env, j_sta][:: int(nDay+1), :] = -1 # Reset absorbing death states
+                    
+                    # Update reward matrix
+                    Rs[:: int(nDay+1), :] = -1
+                    Rs[stateS, j_sta] = np.max(Qs[i_env, j_sta][stateS]) + Rs[stateS, j_sta]
+                    
+                    # Update policy
+                    pi[i_env][stateS][j_sta] = np.argmax(Qs[i_env, j_sta][stateS])
+                    if Qs[i_env, j_sta][stateS][0] == Qs[i_env, j_sta][stateS][1] == Qs[i_env, j_sta][stateS][2] == Qs[i_env, j_sta][stateS][3] == -1:
+                        pi[i_env][stateS][j_sta] = np.nan
+                    elif Qs[i_env, j_sta][stateS][0] == Qs[i_env, j_sta][stateS][1] == Qs[i_env, j_sta][stateS][2] == Qs[i_env, j_sta][stateS][3]:
+                        pi[i_env][stateS][j_sta] = 1230
+                    elif Qs[i_env, j_sta][stateS][0] == Qs[i_env, j_sta][stateS][1] == Qs[i_env, j_sta][stateS][2] and np.argmax(Qs[i_env, j_sta][stateS]) == 0:
+                        pi[i_env][stateS][j_sta] = 120
+                    elif Qs[i_env, j_sta][stateS][1] == Qs[i_env, j_sta][stateS][2] == Qs[i_env, j_sta][stateS][3] and np.argmax(Qs[i_env, j_sta][stateS]) == 1:
+                        pi[i_env][stateS][j_sta] = 123
+                    elif Qs[i_env, j_sta][stateS][2] == Qs[i_env, j_sta][stateS][3] == Qs[i_env, j_sta][stateS][0] and np.argmax(Qs[i_env, j_sta][stateS]) == 0:
+                        pi[i_env][stateS][j_sta] = 230
+                    elif Qs[i_env, j_sta][stateS][3] == Qs[i_env, j_sta][stateS][0] == Qs[i_env, j_sta][stateS][1]and np.argmax(Qs[i_env, j_sta][stateS]) == 0:
+                        pi[i_env][stateS][j_sta] = 130
+                    elif Qs[i_env, j_sta][stateS][0] == Qs[i_env, j_sta][stateS][1] and np.argmax(Qs[i_env, j_sta][stateS]) == 0:
+                        pi[i_env][stateS][j_sta] = 10
+                    elif Qs[i_env, j_sta][stateS][2] == Qs[i_env, j_sta][stateS][3] and np.argmax(Qs[i_env, j_sta][stateS]) == 2:
+                        pi[i_env][stateS][j_sta] = 23
+                    elif Qs[i_env, j_sta][stateS][0] == Qs[i_env, j_sta][stateS][2] and np.argmax(Qs[i_env, j_sta][stateS]) == 0:
+                        pi[i_env][stateS][j_sta] = 20
+                    elif Qs[i_env, j_sta][stateS][0] == Qs[i_env, j_sta][stateS][3] and np.argmax(Qs[i_env, j_sta][stateS]) == 0:
+                        pi[i_env][stateS][j_sta] = 30
+                    elif Qs[i_env, j_sta][stateS][1] == Qs[i_env, j_sta][stateS][2] and np.argmax(Qs[i_env, j_sta][stateS]) == 1: 
+                        pi[i_env][stateS][j_sta] = 12
+                    elif Qs[i_env, j_sta][stateS][1] == Qs[i_env, j_sta][stateS][3] and np.argmax(Qs[i_env, j_sta][stateS]) == 1:
+                        pi[i_env][stateS][j_sta] = 13
+    
+    # Fill value and policy trables
+    Q_lstPARE.append(Qs)
+    piLstPARE.append(pi)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# # Evaluate OP weather discrimination
+# tot = 0
+# for i in range(0, len(piLstPARE)):
+#     l = np.count_nonzero(piLstPARE[i][0] == 2)
+#     r = np.count_nonzero(piLstPARE[i][1] == 2)
+#     if abs(l-r) > 5:
+#         tot += 1
+# print("ratio of forests where weathers differ significantly: ", tot/len(slct))
 
