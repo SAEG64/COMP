@@ -68,7 +68,7 @@ for i in range(0, len(items)):
 
 
 # =============================================================================
-# Markov Decision Process
+# Markov Decision Process - selfish
 # =============================================================================
 # Define environment
 nSta = 7    # LP states
@@ -107,134 +107,305 @@ def transitio(lp, val, trns_vec, p):  # Transition vector
     return trns_vec
 
 # Value matrix
-def Q_space(obs_space, nDec):     # State-action space
+def Q_space(obs_space, nDec, a):     # State-action space
     Q = np.zeros((obs_space, nDec))
-    Q[:: int(nDay+1), :] = -1
+    Q[:: int(nDay+1), :] = a
     return Q
 
-Q_lst = []
-piLst = []
+# =============================================================================
+# Markov Decision Process - pareto & Nash
+# =============================================================================
+# Define "god" player
+w = 0.5 # weight of own choice
+
+Q_lstPARE = []
+piLstPARE = []
+Q_lstNASH = []
+piLstNASH = []
+gameOrder = []
 for itr in range(0, len(slct)):
     
     # State-action space
     Qs = {}
     for i in range(int(nEnv)):
-        Qs[i] = Q_space(obser, nDec)
+        for j in range(0, nSta):
+            Qs[i,j] = Q_space(obser, nDec, -1)
+    # Nash sums
+    Ns = {}
+    for i in range(int(nEnv)):
+        for j in range(0, nSta):
+            Ns[i,j] = Q_space(obser, nDec, 0)
     # Reward spaces
-    Rs = Q_space(obser, 1)
+    Rs = Q_space(obser, 1*nSta, -1)
     # Policy spaces
     pi = {}
     for i in range(int(nEnv)):
         pi[i] = copy.deepcopy(Rs)
         pi[i][:: int(nDay+1), :] = np.nan
-        
+    # Policy according to Nash
+    piN = copy.deepcopy(pi)
+    # Rank sort
+    giN = copy.deepcopy(pi)
+    
     for i_day in range(0, nDay):
-        for i_sta in range(0, nSta-1):
-            for i_env in range(0, nEnv):
-                
-                # Probability & magnitude of gain
-                pG = slct[itr]["1 pSuccess"][i_env]
-                pE = slct[itr]["1.1 pExtra coop"][i_env]
-                b = slct[itr]["2 gain magnitude"][i_env]
-                # Current state
-                lpCur = i_sta + 1
-                state = nSta + i_day * nSta + lpCur
-                
-                # Reward vector
-                rew = Rs[i_day*nSta : i_day*nSta+nSta]
-                
-                # cooperate/cooperate
-                trnsCC = copy.deepcopy(trns)
-                trnsCC = foraG(trnsCC, pG+pE, lpCur)
-                trnsCC = foraL(trnsCC, 1-(pG+pE), lpCur)
-                trnsCC = trnsCC/2
-                # cooperate/defect
-                trnsCD = copy.deepcopy(trns)
-                trnsCD = foraL(trnsCD, 1, lpCur)
-                trnsCD = trnsCD/2
-                # defect/cooperate
-                trnsDC = copy.deepcopy(trns)
-                trnsDC = steaG(trnsDC, pG, lpCur)
-                trnsDC = steaL(trnsDC, 1-pG, lpCur)
-                trnsDC = trnsDC/2
-                # defect/defect
-                trnsDD = copy.deepcopy(trns)
-                trnsDD = steaL(trnsDD, 1, lpCur)
-                trnsDD = trnsDD/2
-                
-                # Update Q and R spaces
-                Qs[i_env][state][0] = np.dot(trnsCC, rew)
-                Qs[i_env][state][1] = np.dot(trnsCD, rew)
-                Qs[i_env][state][2] = np.dot(trnsDC, rew)
-                Qs[i_env][state][3] = np.dot(trnsDD, rew)
-                Rs[state] = np.max(Qs[i_env][state]) + Rs[state]
-                # Update policy
-                pi[i_env][state] = np.argmax(Qs[i_env][state])
-                
+        for i_sta in range(0, nSta):
+            for j_sta in range(0, nSta):
+                for i_env in range(0, nEnv):
+                    
+                    # Probability & magnitude of gain
+                    pG = slct[itr]["1 pSuccess"][i_env]
+                    pE = slct[itr]["1.1 pExtra coop"][i_env]
+                    b = slct[itr]["2 gain magnitude"][i_env]
+                    # Current state
+                    stateS = nSta + i_day * nSta + i_sta
+                    
+                    # Reward vector
+                    rew = Rs[i_day*nSta : i_day*nSta+nSta, j_sta]
+                    
+                    ## Transition vectors for outcomes
+                    trnsCC = copy.deepcopy(trns)
+                    trnsCD = copy.deepcopy(trns)
+                    trnsDC = copy.deepcopy(trns)
+                    trnsDD = copy.deepcopy(trns)
+                    trnoCC = copy.deepcopy(trns)
+                    trnoCD = copy.deepcopy(trns)
+                    trnoDC = copy.deepcopy(trns)
+                    trnoDD = copy.deepcopy(trns)
+                    if i_sta == 0 and j_sta == 0:
+                        ## Self
+                        # cooperate/cooperate
+                        trnsCC = steaL(trnsCC, 1, i_sta)
+                        trnsCC = trnsCC/2
+                        # cooperate/defect
+                        trnsCD = steaL(trnsCD, 1, i_sta)
+                        trnsCD = trnsCD/2
+                        # defect/cooperate
+                        trnsDC = steaL(trnsDC, 1, i_sta)
+                        trnsDC = trnsDC/2
+                        # defect/defect
+                        trnsDD = steaL(trnsDD, 1, i_sta)
+                        trnsDD = trnsDD/2
+                        
+                        ## Other
+                        # cooperate/cooperate
+                        trnoCC = steaL(trnoCC, 1, j_sta)
+                        trnoCC = trnoCC/2
+                        # cooperate/defect
+                        trnoCD = steaL(trnoCD, 1, j_sta)
+                        trnoCD = trnoCD/2
+                        # defect/cooperate
+                        trnoDC = steaL(trnoDC, 1, j_sta)
+                        trnoDC = trnoDC/2
+                        # defect/defect
+                        trnoDD = steaL(trnoDD, 1, j_sta)
+                        trnoDD = trnoDD/2
+                    elif i_sta == 0 and j_sta != 0:
+                        ## Self
+                        # cooperate/cooperate
+                        trnsCC = steaL(trnsCC, 1, i_sta)
+                        trnsCC = trnsCC/2
+                        # cooperate/defect
+                        trnsCD = steaL(trnsCD, 1, i_sta)
+                        trnsCD = trnsCD/2
+                        # defect/cooperate
+                        trnsDC = steaL(trnsDC, 1, i_sta)
+                        trnsDC = trnsDC/2
+                        # defect/defect
+                        trnsDD = steaL(trnsDD, 1, i_sta)
+                        trnsDD = trnsDD/2
+                        
+                        ## Other
+                        # cooperate/cooperate
+                        trnoCC = foraG(trnoCC, pG, j_sta)
+                        trnoCC = foraL(trnoCC, 1-pG, j_sta)
+                        trnoCC = trnoCC/2
+                        # cooperate/defect
+                        trnoCD = foraG(trnoCD, pG, j_sta)
+                        trnoCD = foraL(trnoCD, 1-pG, j_sta)
+                        trnoCD = trnoCD/2
+                        # defect/cooperate
+                        trnoDC = steaL(trnoDC, 1, j_sta)
+                        trnoDC = trnoDC/2
+                        # defect/defect
+                        trnoDD = steaL(trnoDD, 1, j_sta)
+                        trnoDD = trnoDD/2
+                    elif i_sta != 0 and j_sta == 0:
+                        ## Self
+                        # cooperate/cooperate
+                        trnsCC = foraG(trnsCC, pG, i_sta)
+                        trnsCC = foraL(trnsCC, 1-pG, i_sta)
+                        trnsCC = trnsCC/2
+                        # cooperate/defect
+                        trnsCD = foraG(trnsCD, pG, i_sta)
+                        trnsCD = foraL(trnsCD, 1-pG, i_sta)
+                        trnsCD = trnsCD/2
+                        # defect/cooperate
+                        trnsDC = steaL(trnsDC, 1, i_sta)
+                        trnsDC = trnsDC/2
+                        # defect/defect
+                        trnsDD = steaL(trnsDD, 1, i_sta)
+                        trnsDD = trnsDD/2
+                        
+                        ## Other
+                        # cooperate/cooperate
+                        trnoCC = steaL(trnoCC, 1, j_sta)
+                        trnoCC = trnoCC/2
+                        # cooperate/defect
+                        trnoCD = steaL(trnoCD, 1, j_sta)
+                        trnoCD = trnoCD/2
+                        # defect/cooperate
+                        trnoDC = steaL(trnoDC, 1, j_sta)
+                        trnoDC = trnoDC/2
+                        # defect/defect
+                        trnoDD = steaL(trnoDD, 1, j_sta)
+                        trnoDD = trnoDD/2
+                    else:
+                        ## Self
+                        # cooperate/cooperate
+                        trnsCC = foraG(trnsCC, pG+pE, i_sta)
+                        trnsCC = foraL(trnsCC, 1-(pG+pE), i_sta)
+                        trnsCC = trnsCC/2
+                        # cooperate/defect
+                        trnsCD = foraL(trnsCD, 1, i_sta)
+                        trnsCD = trnsCD/2
+                        # defect/cooperate
+                        trnsDC = steaG(trnsDC, pG, i_sta)
+                        trnsDC = steaL(trnsDC, 1-pG, i_sta)
+                        trnsDC = trnsDC/2
+                        # defect/defect
+                        trnsDD = steaL(trnsDD, 1, i_sta)
+                        trnsDD = trnsDD/2
+                        
+                        ## Other
+                        # cooperate/cooperate
+                        trnoCC = foraG(trnoCC, pG+pE, j_sta)
+                        trnoCC = foraL(trnoCC, 1-(pG+pE), j_sta)
+                        trnoCC = trnoCC/2
+                        # cooperate/defect
+                        trnoCD = foraL(trnoCD, 1, j_sta)
+                        trnoCD = trnoCD/2
+                        # defect/cooperate
+                        trnoDC = steaG(trnoDC, pG, j_sta)
+                        trnoDC = steaL(trnoDC, 1-pG, j_sta)
+                        trnoDC = trnoDC/2
+                        # defect/defect
+                        trnoDD = steaL(trnoDD, 1, j_sta)
+                        trnoDD = trnoDD/2
+                    
+                    # Update Q space
+                    Qs[i_env, j_sta][stateS][0] = w*np.dot(trnsCC, rew)+(1-w)*np.dot(trnoCC, rew)
+                    Qs[i_env, j_sta][stateS][1] = w*np.dot(trnsCD, rew)+(1-w)*np.dot(trnoDC, rew)
+                    Qs[i_env, j_sta][stateS][2] = w*np.dot(trnsDC, rew)+(1-w)*np.dot(trnoCD, rew)
+                    Qs[i_env, j_sta][stateS][3] = w*np.dot(trnsDD, rew)+(1-w)*np.dot(trnoDD, rew)
+                    Qs[i_env, j_sta][:: int(nDay+1), :] = -1 # Reset absorbing death states
+                    
+                    # Explore Nash equilibrias
+                    if Qs[i_env, j_sta][stateS][0] != Qs[i_env, j_sta][stateS][1]:
+                        Ns[i_env, j_sta][stateS][np.argmax([Qs[i_env, j_sta][stateS][0],Qs[i_env, j_sta][stateS][1]])] += 1
+                    else:
+                        Ns[i_env, j_sta][stateS][0] += 0.5
+                        Ns[i_env, j_sta][stateS][1] += 0.5
+                    if Qs[i_env, j_sta][stateS][0] != Qs[i_env, j_sta][stateS][2]:
+                        Ns[i_env, j_sta][stateS][np.argmax([Qs[i_env, j_sta][stateS][0],Qs[i_env, j_sta][stateS][2]])+np.argmax([Qs[i_env, j_sta][stateS][0],Qs[i_env, j_sta][stateS][2]])] += 1
+                    else:
+                        Ns[i_env, j_sta][stateS][0] += 0.5
+                        Ns[i_env, j_sta][stateS][2] += 0.5
+                    if Qs[i_env, j_sta][stateS][1] != Qs[i_env, j_sta][stateS][3]:
+                        Ns[i_env, j_sta][stateS][np.argmax([Qs[i_env, j_sta][stateS][1],Qs[i_env, j_sta][stateS][3]])+1+np.argmax([Qs[i_env, j_sta][stateS][1],Qs[i_env, j_sta][stateS][3]])] += 1
+                    else:
+                        Ns[i_env, j_sta][stateS][1] += 0.5
+                        Ns[i_env, j_sta][stateS][3] += 0.5
+                    if Qs[i_env, j_sta][stateS][2] != Qs[i_env, j_sta][stateS][3]:
+                        Ns[i_env, j_sta][stateS][np.argmax([Qs[i_env, j_sta][stateS][2],Qs[i_env, j_sta][stateS][3]])+2] += 1
+                    else:
+                        Ns[i_env, j_sta][stateS][2] += 0.5
+                        Ns[i_env, j_sta][stateS][3] += 0.5
+                    Ns[i_env, j_sta][:: int(nDay+1), :] = np.nan # Reset absorbing death states of self
+                    
+                    # Update reward matrix
+                    Rs[:: int(nDay+1), :] = -1
+                    Rs[stateS, j_sta] = np.max(Qs[i_env, j_sta][stateS]) + Rs[stateS, j_sta]
+                    
+                    # Update policy pareto
+                    pi[i_env][stateS][j_sta] = np.argmax(Qs[i_env, j_sta][stateS])
+                    if Qs[i_env, j_sta][stateS][0] == Qs[i_env, j_sta][stateS][1] == Qs[i_env, j_sta][stateS][2] == Qs[i_env, j_sta][stateS][3] == -1:
+                        pi[i_env][stateS][j_sta] = np.nan
+                    elif Qs[i_env, j_sta][stateS][0] == Qs[i_env, j_sta][stateS][1] == Qs[i_env, j_sta][stateS][2] == Qs[i_env, j_sta][stateS][3]:
+                        pi[i_env][stateS][j_sta] = 3210
+                    elif Qs[i_env, j_sta][stateS][0] == Qs[i_env, j_sta][stateS][1] == Qs[i_env, j_sta][stateS][2] and np.argmax(Qs[i_env, j_sta][stateS]) == 0:
+                        pi[i_env][stateS][j_sta] = 210
+                    elif Qs[i_env, j_sta][stateS][1] == Qs[i_env, j_sta][stateS][2] == Qs[i_env, j_sta][stateS][3] and np.argmax(Qs[i_env, j_sta][stateS]) == 1:
+                        pi[i_env][stateS][j_sta] = 321
+                    elif Qs[i_env, j_sta][stateS][2] == Qs[i_env, j_sta][stateS][3] == Qs[i_env, j_sta][stateS][0] and np.argmax(Qs[i_env, j_sta][stateS]) == 0:
+                        pi[i_env][stateS][j_sta] = 320
+                    elif Qs[i_env, j_sta][stateS][3] == Qs[i_env, j_sta][stateS][0] == Qs[i_env, j_sta][stateS][1]and np.argmax(Qs[i_env, j_sta][stateS]) == 0:
+                        pi[i_env][stateS][j_sta] = 310
+                    elif Qs[i_env, j_sta][stateS][0] == Qs[i_env, j_sta][stateS][1] and np.argmax(Qs[i_env, j_sta][stateS]) == 0:
+                        pi[i_env][stateS][j_sta] = 10
+                    elif Qs[i_env, j_sta][stateS][2] == Qs[i_env, j_sta][stateS][3] and np.argmax(Qs[i_env, j_sta][stateS]) == 2:
+                        pi[i_env][stateS][j_sta] = 32
+                    elif Qs[i_env, j_sta][stateS][0] == Qs[i_env, j_sta][stateS][2] and np.argmax(Qs[i_env, j_sta][stateS]) == 0:
+                        pi[i_env][stateS][j_sta] = 20
+                    elif Qs[i_env, j_sta][stateS][0] == Qs[i_env, j_sta][stateS][3] and np.argmax(Qs[i_env, j_sta][stateS]) == 0:
+                        pi[i_env][stateS][j_sta] = 30
+                    elif Qs[i_env, j_sta][stateS][1] == Qs[i_env, j_sta][stateS][2] and np.argmax(Qs[i_env, j_sta][stateS]) == 1: 
+                        pi[i_env][stateS][j_sta] = 21
+                    elif Qs[i_env, j_sta][stateS][1] == Qs[i_env, j_sta][stateS][3] and np.argmax(Qs[i_env, j_sta][stateS]) == 1:
+                        pi[i_env][stateS][j_sta] = 31
+                    
+                    # Update policy according to Nash
+                    piN[i_env][stateS][j_sta] = np.argmax(Ns[i_env, j_sta][stateS])
+                    if Ns[i_env, j_sta][stateS][0] == Ns[i_env, j_sta][stateS][1] == Ns[i_env, j_sta][stateS][2] == Ns[i_env, j_sta][stateS][3] != np.nan:
+                        piN[i_env][stateS][j_sta] = 3210
+                    elif Ns[i_env, j_sta][stateS][0] == Ns[i_env, j_sta][stateS][1] == Ns[i_env, j_sta][stateS][2] and np.argmax(Ns[i_env, j_sta][stateS]) == 0:
+                        piN[i_env][stateS][j_sta] = 210
+                    elif Ns[i_env, j_sta][stateS][1] == Ns[i_env, j_sta][stateS][2] == Ns[i_env, j_sta][stateS][3] and np.argmax(Ns[i_env, j_sta][stateS]) == 1:
+                        piN[i_env][stateS][j_sta] = 321
+                    elif Ns[i_env, j_sta][stateS][2] == Ns[i_env, j_sta][stateS][3] == Ns[i_env, j_sta][stateS][0] and np.argmax(Ns[i_env, j_sta][stateS]) == 0:
+                        piN[i_env][stateS][j_sta] = 320
+                    elif Ns[i_env, j_sta][stateS][3] == Ns[i_env, j_sta][stateS][0] == Ns[i_env, j_sta][stateS][1]and np.argmax(Ns[i_env, j_sta][stateS]) == 0:
+                        piN[i_env][stateS][j_sta] = 310
+                    elif Ns[i_env, j_sta][stateS][0] == Ns[i_env, j_sta][stateS][1] and np.argmax(Ns[i_env, j_sta][stateS]) == 0:
+                        piN[i_env][stateS][j_sta] = 10
+                    elif Ns[i_env, j_sta][stateS][2] == Ns[i_env, j_sta][stateS][3] and np.argmax(Ns[i_env, j_sta][stateS]) == 2:
+                        piN[i_env][stateS][j_sta] = 32
+                    elif Ns[i_env, j_sta][stateS][0] == Ns[i_env, j_sta][stateS][2] and np.argmax(Ns[i_env, j_sta][stateS]) == 0:
+                        piN[i_env][stateS][j_sta] = 20
+                    elif Ns[i_env, j_sta][stateS][0] == Ns[i_env, j_sta][stateS][3] and np.argmax(Ns[i_env, j_sta][stateS]) == 0:
+                        piN[i_env][stateS][j_sta] = 30
+                    elif Ns[i_env, j_sta][stateS][1] == Ns[i_env, j_sta][stateS][2] and np.argmax(Ns[i_env, j_sta][stateS]) == 1: 
+                        piN[i_env][stateS][j_sta] = 21
+                    elif Ns[i_env, j_sta][stateS][1] == Ns[i_env, j_sta][stateS][3] and np.argmax(Ns[i_env, j_sta][stateS]) == 1:
+                        piN[i_env][stateS][j_sta] = 31
+                    piN[i_env][:: int(nDay+1), :] = np.nan
+                    
+                    # Rank sort: 1 = CC, 2 = CD, 3 = DC, 4 = DD
+                    ordr = str(np.argsort(Ns[i_env, j_sta][stateS]))
+                    ordr = ordr.replace("[", "")
+                    ordr = ordr.replace("]", "")
+                    ordr = ordr.replace(" ", "")
+                    ordr = ordr.replace("3", "4")
+                    ordr = ordr.replace("2", "3")
+                    ordr = ordr.replace("1", "2")
+                    ordr = ordr.replace("0", "1")
+                    ordr = int(ordr)
+                    giN[i_env][stateS][j_sta] = ordr
+                    "How about choices with equal rank? Still need to control for that."
+    
     # Fill value and policy trables
-    Q_lst.append(Qs)
-    piLst.append(pi)
-                
-# Evaluate OP weather discrimination
-tot = 0
-for i in range(0, len(piLst)):
-    l = np.count_nonzero(piLst[i][0] == 2)
-    r = np.count_nonzero(piLst[i][1] == 2)
-    if abs(l-r) > 5:
-        tot += 1
-print("ratio of forests where weathers differ significantly: ", tot/len(slct))
+    Q_lstPARE.append(Qs)
+    piLstPARE.append(pi)
+    Q_lstNASH.append(Ns)
+    piLstNASH.append(piN)
+    gameOrder.append(giN)
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+# # Evaluate OP weather discrimination
+# tot = 0
+# for i in range(0, len(piLstPARE)):
+#     l = np.count_nonzero(piLstPARE[i][0] == 2)
+#     r = np.count_nonzero(piLstPARE[i][1] == 2)
+#     if abs(l-r) > 5:
+#         tot += 1
+# print("ratio of forests where weathers differ significantly: ", tot/len(slct))
 
