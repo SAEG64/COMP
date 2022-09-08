@@ -4,6 +4,8 @@
 Created on Tue Aug 30 16:09:38 2022
 
 @author: sergej
+
+2-player foraging with option "forage" and "wait/steal"
 """
 import numpy as np
 # import pandas as pd
@@ -73,7 +75,7 @@ for i in range(0, len(items)):
 # Markov Decision Process - selfish
 # =============================================================================
 # Define environment
-nSta = 7    # LP states
+nSta = 5    # LP states
 nDay = 6    # Nr. of time-points
 nDec = 4    # Nr. of decisions
 lpAr = np.arange(0, nSta)    # LP array
@@ -143,7 +145,7 @@ for itr in range(0, len(slct)):
     pi = {}
     for i in range(int(nEnv)):
         pi[i] = copy.deepcopy(Rs)
-        pi[i][:: int(nDay+1), :] = np.nan
+        pi[i][:: int(nSta), :] = np.nan
     # Policy according to Nash
     piN = copy.deepcopy(pi)
     # Rank sort
@@ -301,7 +303,7 @@ for itr in range(0, len(slct)):
                     Qs[i_env, j_sta][stateS][1] = w*np.dot(trnsCD, rew)+(1-w)*np.dot(trnoDC, rew)
                     Qs[i_env, j_sta][stateS][2] = w*np.dot(trnsDC, rew)+(1-w)*np.dot(trnoCD, rew)
                     Qs[i_env, j_sta][stateS][3] = w*np.dot(trnsDD, rew)+(1-w)*np.dot(trnoDD, rew)
-                    Qs[i_env, j_sta][:: int(nDay+1), :] = -1 # Reset absorbing death states
+                    Qs[i_env, j_sta][:: int(nSta), :] = -1 # Reset absorbing death states
                     
                     # Explore Nash equilibrias
                     if Qs[i_env, j_sta][stateS][0] != Qs[i_env, j_sta][stateS][1]:
@@ -324,10 +326,10 @@ for itr in range(0, len(slct)):
                     else:
                         Ns[i_env, j_sta][stateS][2] += 0.5
                         Ns[i_env, j_sta][stateS][3] += 0.5
-                    Ns[i_env, j_sta][:: int(nDay+1), :] = np.nan # Reset absorbing death states of self
+                    Ns[i_env, j_sta][:: int(nSta), :] = np.nan # Reset absorbing death states of self
                     
                     # Update reward matrix
-                    Rs[:: int(nDay+1), :] = -1
+                    Rs[:: int(nSta), :] = -1
                     Rs[stateS, j_sta] = np.max(Qs[i_env, j_sta][stateS]) + Rs[stateS, j_sta]
                     
                     # Update policy pareto
@@ -381,79 +383,80 @@ for itr in range(0, len(slct)):
                         piN[i_env][stateS][j_sta] = 21
                     elif Ns[i_env, j_sta][stateS][1] == Ns[i_env, j_sta][stateS][3] and np.argmax(Ns[i_env, j_sta][stateS]) == 1:
                         piN[i_env][stateS][j_sta] = 31
-                    piN[i_env][:: int(nDay+1), :] = np.nan
+                    piN[i_env][:: int(nSta), :] = np.nan
                     
-                    # Rank sort: 1 = CC, 2 = CD, 3 = DC, 4 = DD
+                    # Sort and rank values - 1 = R, 2 = S, 3 = T, 4 = P
                     ordr = np.flip(np.argsort(Qs[i_env, j_sta][stateS]))
                     rank = rankdata(Qs[i_env, j_sta][stateS], method='min')
                     rank.sort()
-
+                    
+                    # Append sorted and ranked values
                     giN[i_env][stateS][j_sta] = np.append(giN[i_env][stateS][j_sta], ordr)
                     giN[i_env][stateS][j_sta] = giN[i_env][stateS][j_sta][giN[i_env][stateS][j_sta] != None]
                     giN[i_env][stateS][j_sta] = np.append(giN[i_env][stateS][j_sta], rank)
                     giN[i_env][stateS][j_sta] = np.array_split(giN[i_env][stateS][j_sta], 2)
-                    # giN[i_env][stateS][j_sta][2] = np.empty([0,0], dtype=object)
+                    
+                    # Ranks sorted unique or shared
                     if giN[i_env][stateS][j_sta][1][0] == giN[i_env][stateS][j_sta][1][1] or giN[i_env][stateS][j_sta][1][0] == giN[i_env][stateS][j_sta][1][2] or giN[i_env][stateS][j_sta][1][0] == giN[i_env][stateS][j_sta][1][3] or giN[i_env][stateS][j_sta][1][1] == giN[i_env][stateS][j_sta][1][2] or giN[i_env][stateS][j_sta][1][1] == giN[i_env][stateS][j_sta][1][3] or giN[i_env][stateS][j_sta][1][2] == giN[i_env][stateS][j_sta][1][3]:
-                        if abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][1]):
-                            game = np.array(("prisoner_dilemma"))
-                        elif abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][1]):
-                            game = np.array(("deadlock"))
-                        elif abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][0]):
-                            game = np.array(("compromise"))
-                        elif abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][0]):
-                            game = np.array(("hero"))
-                        elif abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][1]):
-                            game = np.array(("battle"))
-                        elif abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][3]):
-                            game = np.array(("chicken"))
-                        elif abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][1]):
-                            game = np.array(("stag hunt"))
-                        elif abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][1]):
-                            game = np.array(("assurance"))
-                        elif abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][2]):
-                            game = np.array(("coordination"))
-                        elif abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][2]):
-                            game = np.array(("peace"))
-                        elif abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][3]):
-                            game = np.array(("harmony"))
-                        elif abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][3]):
-                            game = np.array(("concord"))
-                        else:
-                            game = np.array(("not_specified"))
-                        
-                        pool  = np.array(("multiple"))
-                        
+                        pool  = np.array(("shared_ranks"))
                     else:
-                        if abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][1]):
-                            game = np.array(("prisoner_dilemma"))
-                        elif abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][1]):
-                            game = np.array(("deadlock"))
-                        elif abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][0]):
-                            game = np.array(("compromise"))
-                        elif abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][0]):
-                            game = np.array(("hero"))
-                        elif abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][1]):
-                            game = np.array(("battle"))
-                        elif abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][3]):
-                            game = np.array(("chicken"))
-                        elif abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][1]):
-                            game = np.array(("stag hunt"))
-                        elif abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][1]):
-                            game = np.array(("assurance"))
-                        elif abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][2]):
-                            game = np.array(("coordination"))
-                        elif abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][2]):
-                            game = np.array(("peace"))
-                        elif abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][3]):
-                            game = np.array(("harmony"))
-                        elif abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][3]):
-                            game = np.array(("concord"))
-                        else:
-                            game = np.array(("not_specified"))
-                        
-                        pool  = np.array(("singular"))
-                        
+                        pool  = np.array(("unique_sorts"))
+                    
+                    # Game types
+                    if abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][1]):
+                        game = np.array(("prisoner_dilemma"))
+                    elif abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][1]):
+                        game = np.array(("deadlock"))
+                    elif abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][0]):
+                        game = np.array(("compromise"))
+                    elif abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][0]):
+                        game = np.array(("hero"))
+                    elif abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][1]):
+                        game = np.array(("battle"))
+                    elif abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][3]):
+                        game = np.array(("chicken"))
+                    elif abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][1]):
+                        game = np.array(("stag_hunt"))
+                    elif abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][1]):
+                        game = np.array(("assurance"))
+                    elif abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][2]):
+                        game = np.array(("coordination"))
+                    elif abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][3]) < abs(Qs[i_env, j_sta][stateS][2]):
+                        game = np.array(("peace"))
+                    elif abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][3]):
+                        game = np.array(("harmony"))
+                    elif abs(Qs[i_env, j_sta][stateS][0]) < abs(Qs[i_env, j_sta][stateS][2]) < abs(Qs[i_env, j_sta][stateS][1]) < abs(Qs[i_env, j_sta][stateS][3]):
+                        game = np.array(("concord"))
+                    
+                    elif abs(Qs[i_env, j_sta][stateS][2]) > abs(Qs[i_env, j_sta][stateS][0]) > abs(Qs[i_env, j_sta][stateS][3]) > abs(Qs[i_env, j_sta][stateS][1]):
+                        game = np.array(("INVERT_prisoner_dilemma"))
+                    elif abs(Qs[i_env, j_sta][stateS][2]) > abs(Qs[i_env, j_sta][stateS][3]) > abs(Qs[i_env, j_sta][stateS][0]) > abs(Qs[i_env, j_sta][stateS][1]):
+                        game = np.array(("INVERT_deadlock"))
+                    elif abs(Qs[i_env, j_sta][stateS][2]) > abs(Qs[i_env, j_sta][stateS][3]) > abs(Qs[i_env, j_sta][stateS][1]) > abs(Qs[i_env, j_sta][stateS][0]):
+                        game = np.array(("INVERT_compromise"))
+                    elif abs(Qs[i_env, j_sta][stateS][2]) > abs(Qs[i_env, j_sta][stateS][1]) > abs(Qs[i_env, j_sta][stateS][3]) > abs(Qs[i_env, j_sta][stateS][0]):
+                        game = np.array(("INVERT_hero"))
+                    elif abs(Qs[i_env, j_sta][stateS][2]) > abs(Qs[i_env, j_sta][stateS][1]) > abs(Qs[i_env, j_sta][stateS][0]) > abs(Qs[i_env, j_sta][stateS][1]):
+                        game = np.array(("INVERT_battle"))
+                    elif abs(Qs[i_env, j_sta][stateS][2]) > abs(Qs[i_env, j_sta][stateS][0]) > abs(Qs[i_env, j_sta][stateS][1]) > abs(Qs[i_env, j_sta][stateS][3]):
+                        game = np.array(("INVERT_chicken"))
+                    elif abs(Qs[i_env, j_sta][stateS][0]) > abs(Qs[i_env, j_sta][stateS][2]) > abs(Qs[i_env, j_sta][stateS][3]) > abs(Qs[i_env, j_sta][stateS][1]):
+                        game = np.array(("INVERT_stag_hunt"))
+                    elif abs(Qs[i_env, j_sta][stateS][0]) > abs(Qs[i_env, j_sta][stateS][3]) > abs(Qs[i_env, j_sta][stateS][2]) > abs(Qs[i_env, j_sta][stateS][1]):
+                        game = np.array(("INVERT_assurance"))
+                    elif abs(Qs[i_env, j_sta][stateS][0]) > abs(Qs[i_env, j_sta][stateS][3]) > abs(Qs[i_env, j_sta][stateS][1]) > abs(Qs[i_env, j_sta][stateS][2]):
+                        game = np.array(("INVERT_coordination"))
+                    elif abs(Qs[i_env, j_sta][stateS][0]) > abs(Qs[i_env, j_sta][stateS][1]) > abs(Qs[i_env, j_sta][stateS][3]) > abs(Qs[i_env, j_sta][stateS][2]):
+                        game = np.array(("INVERT_peace"))
+                    elif abs(Qs[i_env, j_sta][stateS][0]) > abs(Qs[i_env, j_sta][stateS][1]) > abs(Qs[i_env, j_sta][stateS][2]) > abs(Qs[i_env, j_sta][stateS][3]):
+                        game = np.array(("INVERT_harmony"))
+                    elif abs(Qs[i_env, j_sta][stateS][0]) > abs(Qs[i_env, j_sta][stateS][2]) > abs(Qs[i_env, j_sta][stateS][1]) > abs(Qs[i_env, j_sta][stateS][3]):
+                        game = np.array(("INVERT_concord"))
+                    else:
+                        game = np.array(("special")) 
+                    
                     giN[i_env][stateS][j_sta] = np.column_stack([giN[i_env][stateS][j_sta], [game, pool]])
+                    giN[i_env][:: int(nSta), :][j_sta] = np.nan
     
     # Fill value and policy trables
     Q_lstPARE.append(Qs)
@@ -465,15 +468,21 @@ for itr in range(0, len(slct)):
 # Convert gameOrder to readable pandas data frame
 for it in range(0, len(gameOrder)):
     for ie in range(0, int(nEnv)):
-        gameOrder[it][ie] = pd.DataFrame(gameOrder[itr][i_env], columns = ["state0", "state1", "state2", "state3", "state4", "state5", "state6"])
+        gameOrder[it][ie] = pd.DataFrame(gameOrder[itr][i_env], columns = ['state' + str(j) for j in range(0, nSta)])
     
-# # Evaluate OP weather discrimination
-# tot = 0
-# for i in range(0, len(piLstPARE)):
-#     l = np.count_nonzero(piLstPARE[i][0] == 2)
-#     r = np.count_nonzero(piLstPARE[i][1] == 2)
-#     if abs(l-r) > 5:
-#         tot += 1
+# Evaluate OP weather discrimination
+tot = 0
+q_NashREV = []
+piNashREV = []
+gaNashREV = []
+for i in range(0, len(piLstPARE)):
+    l = np.count_nonzero(piLstPARE[i][0] == 3)
+    r = np.count_nonzero(piLstPARE[i][1] == 3)
+    if abs(l-r) > 15:
+        q_NashREV.append(Q_lstNASH[i])
+        piNashREV.append(piLstNASH[i])
+        gaNashREV.append(gameOrder[i])
+        tot += 1
 # print("ratio of forests where weathers differ significantly: ", tot/len(slct))
 
 """ Games missing where P and where S is highest --> mutual waiting and letting the other steal from
