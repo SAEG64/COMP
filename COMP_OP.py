@@ -113,14 +113,17 @@ def transitio(lp, val, trns_vec, p):  # Transition vector
 # Value matrix
 def Q_space(obs_space, nDec, a):     # State-action space
     Q = np.zeros((obs_space, nDec))
-    Q[:: int(nDay+1), :] = a
+    Q[:: int(nSta), :] = a
     return Q
 
 # =============================================================================
 # Markov Decision Process - pareto & Nash
 # =============================================================================
+# Select all possible items
+slct = items
+
 # Define "god" player
-w = 0.5 # weight of own choice
+w = 0.9 # weight of own choice
 
 Q_lstPARE = []
 piLstPARE = []
@@ -470,23 +473,23 @@ for it in range(0, len(gameOrder)):
     for ie in range(0, int(nEnv)):
         gameOrder[it][ie] = pd.DataFrame(gameOrder[itr][i_env], columns = ['state' + str(j) for j in range(0, nSta)])
     
-# Evaluate OP weather discrimination
-tot = 0
-q_NashREV = []
-piNashREV = []
-gaNashREV = []
-for i in range(0, len(piLstPARE)):
-    l = np.count_nonzero(piLstPARE[i][0] == 3)
-    r = np.count_nonzero(piLstPARE[i][1] == 3)
-    if abs(l-r) > 15:
-        q_NashREV.append(Q_lstNASH[i])
-        piNashREV.append(piLstNASH[i])
-        gaNashREV.append(gameOrder[i])
-        tot += 1
+# # Evaluate OP weather discrimination
+# tot = 0
+# q_PareREV = []
+# piPareREV = []
+# q_NashREV = []
+# piNashREV = []
+# gaNashREV = []
+# for i in range(0, len(piLstPARE)):
+#     l = np.count_nonzero(piLstPARE[i][0] == 3)
+#     r = np.count_nonzero(piLstPARE[i][1] == 3)
+#     if abs(l-r) > 15:
+#         q_PareREV.append(Q_lstPARE[i])
+#         piPareREV.append(piLstPARE[i])
+#         q_NashREV.append(Q_lstNASH[i])
+#         piNashREV.append(piLstNASH[i])
+#         gaNashREV.append(gameOrder[i])
+#         tot += 1
 # print("ratio of forests where weathers differ significantly: ", tot/len(slct))
 
-""" Games missing where P and where S is highest --> mutual waiting and letting the other steal from
-    me is the overall best when both players are considered equally.
-    Should we simply set up the code so that the "god player" favors one significantly to avoid these
-    game scenarios? """
                 
