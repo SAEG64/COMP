@@ -123,7 +123,7 @@ def Q_space(obs_space, nDec, a):     # State-action space
 slct = items
 
 # Define "god" player
-w = 0.9 # weight of own choice
+w = 0.5 # weight of own choice
 
 Q_lstPARE = []
 piLstPARE = []
@@ -155,6 +155,11 @@ for itr in range(0, len(slct)):
     giN = {}
     for i in range(int(nEnv)):
         giN[i] = np.empty([obser, nSta], dtype=object)
+    # Special rewards
+    Rs[1, :] = 1
+    Rs[2, :] = 2
+    Rs[3, :] = 3
+    Rs[4, :] = 4
     
     for i_day in range(0, nDay):
         for i_sta in range(0, nSta):
@@ -329,11 +334,11 @@ for itr in range(0, len(slct)):
                     else:
                         Ns[i_env, j_sta][stateS][2] += 0.5
                         Ns[i_env, j_sta][stateS][3] += 0.5
-                    Ns[i_env, j_sta][:: int(nSta), :] = np.nan # Reset absorbing death states of self
+                    Ns[i_env, j_sta][:: int(nSta), :] = np.nan # Reset absorbing death states
                     
                     # Update reward matrix
-                    Rs[:: int(nSta), :] = -1
                     Rs[stateS, j_sta] = np.max(Qs[i_env, j_sta][stateS]) + Rs[stateS, j_sta]
+                    Rs[:: int(nSta), j_sta] = -1 # Reset absorbing death states
                     
                     # Update policy pareto
                     pi[i_env][stateS][j_sta] = np.argmax(Qs[i_env, j_sta][stateS])
@@ -386,9 +391,9 @@ for itr in range(0, len(slct)):
                         piN[i_env][stateS][j_sta] = 21
                     elif Ns[i_env, j_sta][stateS][1] == Ns[i_env, j_sta][stateS][3] and np.argmax(Ns[i_env, j_sta][stateS]) == 1:
                         piN[i_env][stateS][j_sta] = 31
-                    piN[i_env][:: int(nSta), :] = np.nan
+                    piN[i_env][:: int(nSta), :] = np.nan # Reset absorbing death states
                     
-                    # Sort and rank values - 1 = R, 2 = S, 3 = T, 4 = P
+                    # Sort and rank values: 0 = R, 1 = S, 2 = T, 3 = P
                     ordr = np.flip(np.argsort(Qs[i_env, j_sta][stateS]))
                     rank = rankdata(Qs[i_env, j_sta][stateS], method='min')
                     rank.sort()
@@ -459,7 +464,12 @@ for itr in range(0, len(slct)):
                         game = np.array(("special")) 
                     
                     giN[i_env][stateS][j_sta] = np.column_stack([giN[i_env][stateS][j_sta], [game, pool]])
-                    giN[i_env][:: int(nSta), :][j_sta] = np.nan
+                    # Replace numeric with letter code: 0 = R, 1 = S, 2 = T, 3 = P
+                    giN[i_env][stateS][j_sta][0][giN[i_env][stateS][j_sta][0] == 0] = "R"
+                    giN[i_env][stateS][j_sta][0][giN[i_env][stateS][j_sta][0] == 1] = "S"
+                    giN[i_env][stateS][j_sta][0][giN[i_env][stateS][j_sta][0] == 2] = "T"
+                    giN[i_env][stateS][j_sta][0][giN[i_env][stateS][j_sta][0] == 3] = "P"
+    giN[i_env][:: int(nSta), :][:] = np.nan # Reset absorbing death states
     
     # Fill value and policy trables
     Q_lstPARE.append(Qs)
@@ -472,6 +482,15 @@ for itr in range(0, len(slct)):
 for it in range(0, len(gameOrder)):
     for ie in range(0, int(nEnv)):
         gameOrder[it][ie] = pd.DataFrame(gameOrder[itr][i_env], columns = ['state' + str(j) for j in range(0, nSta)])
+
+""" Note:   Rows = self_state, columns = other_state. Time points are accounted for in the rows
+            so that  self_stets.max() = len(nLp)*len(nTp), whereas other_state.max() = len(nLp).
+            To calculate deviating OP for opponent, "God" parameter w has to be adjusted to the
+            player01's preference weighting and player02's state has to be taken account for as
+            'other_state'. This can be done for both players parallel and the different OPs can
+            be read in the resulting tables by indexing into LP and time_point for self, and LP
+            for the other player.
+"""
     
 # # Evaluate OP weather discrimination
 # tot = 0
